@@ -5,13 +5,21 @@ use serde_json;
 use std::fs;
 
 #[derive(Debug, Serialize)]
+
+struct Location {
+    start: i32,
+    end: i32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Highlight {
     book: String,
     author: String,
     quote: String,
-    page: String,
-    location: String,
-    date_added: String,
+    page: Option<i32>,
+    location: Location,
+    date_added: i64,
 }
 
 fn main() {
@@ -54,7 +62,7 @@ fn process_item(item: String) -> Option<Highlight> {
         .collect::<Vec<&str>>();
 
     if lines.len() < 3 {
-        eprintln!("Invalid item: {}", item);
+        // println!("Blank quote: {}", item);
         return None;
     }
 
@@ -84,70 +92,120 @@ fn process_item(item: String) -> Option<Highlight> {
 
 // returns book title and author string tuple
 fn parse_first_line(line: String) -> Option<(String, String)> {
+    let mut book = String::new();
     let mut author_name = String::new();
+    let mut author_last_name = String::new();
+    let mut author_first_name = String::new();
 
-    let re = Regex::new(r"^(.*) \((.*), (.*)\)$").unwrap();
+    let re1 = Regex::new(r"^(.*) \(([^,]*), (.*)\)$").unwrap();
+    let re2 = Regex::new(r"^(.*) \(([^,]*) (.*)\)$").unwrap();
+    let re3 = Regex::new(r"^(.*) \((.*)\)$").unwrap();
 
-    print!("line: {}", line);
+    if re1.is_match(&line) {
+        let caps = re1.captures(&line).unwrap();
+        book = caps.get(1).unwrap().as_str().to_owned();
+        author_last_name = caps.get(2).unwrap().as_str().to_owned();
+        author_first_name = caps.get(3).unwrap().as_str().to_owned();
 
-    if !re.is_match(&line) {
+        author_name.push_str(&author_first_name);
+        author_name.push_str(" ");
+        author_name.push_str(&author_last_name);
+    } else if re2.is_match(&line) {
+        let caps = re2.captures(&line).unwrap();
+        book = caps.get(1).unwrap().as_str().to_owned();
+        author_last_name = caps.get(3).unwrap().as_str().to_owned();
+        author_first_name = caps.get(2).unwrap().as_str().to_owned();
+
+        author_name.push_str(&author_first_name);
+        author_name.push_str(" ");
+        author_name.push_str(&author_last_name);
+    } else if re3.is_match(&line) {
+        let caps = re3.captures(&line).unwrap();
+        book = caps.get(1).unwrap().as_str().to_owned();
+        author_name = caps.get(2).unwrap().as_str().to_owned();
+    } else if !line.is_empty() {
+        book = line;
+        author_name = "Unknown".to_string();
+    } else {
         println!("Invalid first line: {}", line);
         return None;
     }
-    let caps = re.captures(&line).unwrap();
-
-    let book = caps.get(1).unwrap().as_str().to_owned();
-
-    let author_last_name = caps.get(2).unwrap().as_str();
-    let author_first_name = caps.get(3).unwrap().as_str();
-
-    author_name.push_str(author_first_name);
-    author_name.push_str(" ");
-    author_name.push_str(author_last_name);
 
     return Some((book, author_name));
 }
 
 // returns page, location, date added
-fn parse_second_line(line: String) -> Option<(String, String, String)> {
-    let mut page = String::new();
-    let mut location = String::new();
-    let mut date_added = String::new();
+fn parse_second_line(line: String) -> Option<(Option<i32>, Location, i64)> {
+    let mut page = None;
+    let mut location = Location { start: 0, end: 0 };
+    let mut date_added = 0;
 
-    let re1 = Regex::new(r"^- [^|]*page (.*) \| Location (.*) \| Added on (.*)$").unwrap();
-    let re2 = Regex::new(r"^- [^|]*Location (.*) \| Added on (.*)$").unwrap();
+    let re1 =
+        Regex::new(r"^- Your [Hh]ighlight[^|]*page (.*) \| [Ll]ocation (.*) \| Added on (.*)$")
+            .unwrap();
+    let re2 = Regex::new(r"^- Your [Hh]ighlight[^|]*[Ll]ocation (.*) \| Added on (.*)$").unwrap();
 
     if re1.is_match(&line) {
         // - Your Highlight on page 293 | Location 4131-4131 | Added on Monday, December 19, 2022 12:50:19 PM
         let caps = re1.captures(&line).unwrap();
 
-        page = caps.get(1).unwrap().as_str().to_owned();
-        location = caps.get(2).unwrap().as_str().to_owned();
+        page = Some(caps.get(1).unwrap().as_str().parse::<i32>().unwrap());
+
+        let location_string = caps.get(2).unwrap().as_str().to_owned();
+        if let Some(l) = parse_location(location_string) {
+            location = l;
+        }
 
         date_added = parse_datetime(caps.get(3).unwrap().as_str().to_owned());
     } else if re2.is_match(&line) {
         // - Your Highlight on Location 138-140 | Added on Monday, December 19, 2022 10:29:07 PM
         let caps = re2.captures(&line).unwrap();
 
-        location = caps.get(1).unwrap().as_str().to_owned();
+        let location_string = caps.get(1).unwrap().as_str().to_owned();
+        if let Some(l) = parse_location(location_string) {
+            location = l;
+        }
+
         date_added = parse_datetime(caps.get(2).unwrap().as_str().to_owned());
     } else {
-        eprintln!("Invalid second line: {}", line);
+        println!("Invalid second line: {}", line);
         return None;
     }
 
     return Some((page, location, date_added));
 }
 
-fn parse_datetime(datetime_string: String) -> String {
-    let datetime_res: Result<chrono::DateTime<Utc>, chrono::ParseError> =
-        TimeZone::datetime_from_str(&Utc, &datetime_string, "%A, %B %d, %Y %l:%M:%S %p");
+fn parse_datetime(datetime_string: String) -> i64 {
+    let fmt1 = "%A, %B %d, %Y %l:%M:%S %p";
+    let fmt2 = "%A, %d %B %Y %H:%M:%S";
 
-    match datetime_res {
-        Ok(datetime) => return datetime.timestamp().to_string(),
-        Err(e) => {
-            println!("Error parsing datetime: {}", e);
-            return String::new();
+    let datetime_res1: Result<chrono::DateTime<Utc>, chrono::ParseError> =
+        TimeZone::datetime_from_str(&Utc, &datetime_string, fmt1);
+    let datetime_res2: Result<chrono::DateTime<Utc>, chrono::ParseError> =
+        TimeZone::datetime_from_str(&Utc, &datetime_string, fmt2);
+
+    match (datetime_res1, datetime_res2) {
+        (Ok(datetime), _) => return datetime.timestamp(),
+        (_, Ok(datetime)) => return datetime.timestamp(),
+        _ => {
+            println!("Invalid datetime: {}", datetime_string);
+            return 0;
         }
+    }
+}
+
+fn parse_location(location_string: String) -> Option<Location> {
+    let re = Regex::new(r"^(.*)-(.*)$").unwrap();
+
+    if re.is_match(location_string.as_str()) {
+        let caps = re.captures(location_string.as_str()).unwrap();
+
+        let start = caps.get(1).unwrap().as_str().parse::<i32>().unwrap();
+        let end = caps.get(2).unwrap().as_str().parse::<i32>().unwrap();
+
+        return Some(Location { start, end });
+    } else {
+        eprintln!("Invalid location: {}", location_string);
+        return None;
     }
 }
