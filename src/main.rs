@@ -1,4 +1,6 @@
 use regex::Regex;
+use serde::Serialize;
+use serde_json;
 use std::fs;
 
 fn main() {
@@ -36,12 +38,15 @@ fn main() {
         })
         .collect();
 
-    print!("{:?}", highlights.get(1));
+    let serialized = serde_json::to_string(&highlights).unwrap();
+    print!("{:?}", serialized);
+
+    fs::write(output_file, serialized).expect("Unable to write file");
 
     // print!("input: {}", temp);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Highlight {
     book: String,
     author: String,
@@ -58,7 +63,6 @@ fn process_item(item: String) -> Option<Highlight> {
         .filter(|x| !x.is_empty())
         .collect::<Vec<&str>>();
 
-    println!("lines: {:?}", lines);
     if lines.len() < 3 {
         eprintln!("Invalid item: {}", item);
         return None;
@@ -74,10 +78,12 @@ fn process_item(item: String) -> Option<Highlight> {
         None => return None,
     };
 
+    let quote = lines[2].to_string();
+
     let h = Highlight {
         book,
         author,
-        quote: String::new(),
+        quote,
         page,
         location,
         date_added,
