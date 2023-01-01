@@ -1,8 +1,18 @@
-use chrono::NaiveDateTime;
+use chrono::{TimeZone, Utc};
 use regex::Regex;
 use serde::Serialize;
 use serde_json;
 use std::fs;
+
+#[derive(Debug, Serialize)]
+struct Highlight {
+    book: String,
+    author: String,
+    quote: String,
+    page: String,
+    location: String,
+    date_added: String,
+}
 
 fn main() {
     println!("Hello, world!");
@@ -29,32 +39,11 @@ fn main() {
     let text = fs::read_to_string(&input_file).unwrap();
     let items = text.split("==========");
 
-    let highlights: Vec<Highlight> = items
-        .flat_map(|x| {
-            let res = process_item(x.to_string());
-            match res {
-                None => return vec![],
-                Some(h) => return vec![h],
-            }
-        })
-        .collect();
+    let highlights: Vec<Highlight> = items.filter_map(|x| process_item(x.to_string())).collect();
 
     let serialized = serde_json::to_string(&highlights).unwrap();
-    // print!("{:?}", serialized);
 
     fs::write(output_file, serialized).expect("Unable to write file");
-
-    // print!("input: {}", temp);
-}
-
-#[derive(Debug, Serialize)]
-struct Highlight {
-    book: String,
-    author: String,
-    quote: String,
-    page: String,
-    location: String,
-    date_added: String,
 }
 
 fn process_item(item: String) -> Option<Highlight> {
@@ -151,8 +140,9 @@ fn parse_second_line(line: String) -> Option<(String, String, String)> {
 }
 
 fn parse_datetime(datetime_string: String) -> String {
-    let datetime_res = NaiveDateTime::parse_from_str(&datetime_string, "%A, %B %d, %Y %l:%M:%S %p");
-    // Parse the datetime string
+    let datetime_res: Result<chrono::DateTime<Utc>, chrono::ParseError> =
+        TimeZone::datetime_from_str(&Utc, &datetime_string, "%A, %B %d, %Y %l:%M:%S %p");
+
     match datetime_res {
         Ok(datetime) => return datetime.timestamp().to_string(),
         Err(e) => {
