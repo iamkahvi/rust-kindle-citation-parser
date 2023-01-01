@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use regex::Regex;
 use serde::Serialize;
 use serde_json;
@@ -39,7 +40,7 @@ fn main() {
         .collect();
 
     let serialized = serde_json::to_string(&highlights).unwrap();
-    print!("{:?}", serialized);
+    // print!("{:?}", serialized);
 
     fs::write(output_file, serialized).expect("Unable to write file");
 
@@ -131,19 +132,32 @@ fn parse_second_line(line: String) -> Option<(String, String, String)> {
         // - Your Highlight on page 293 | Location 4131-4131 | Added on Monday, December 19, 2022 12:50:19 PM
         let caps = re1.captures(&line).unwrap();
 
-        page = caps.get(0).unwrap().as_str().to_owned();
-        location = caps.get(1).unwrap().as_str().to_owned();
-        date_added = caps.get(2).unwrap().as_str().to_owned();
+        page = caps.get(1).unwrap().as_str().to_owned();
+        location = caps.get(2).unwrap().as_str().to_owned();
+
+        date_added = parse_datetime(caps.get(3).unwrap().as_str().to_owned());
     } else if re2.is_match(&line) {
         // - Your Highlight on Location 138-140 | Added on Monday, December 19, 2022 10:29:07 PM
         let caps = re2.captures(&line).unwrap();
 
         location = caps.get(1).unwrap().as_str().to_owned();
-        date_added = caps.get(2).unwrap().as_str().to_owned();
+        date_added = parse_datetime(caps.get(2).unwrap().as_str().to_owned());
     } else {
         eprintln!("Invalid second line: {}", line);
         return None;
     }
 
     return Some((page, location, date_added));
+}
+
+fn parse_datetime(datetime_string: String) -> String {
+    let datetime_res = NaiveDateTime::parse_from_str(&datetime_string, "%A, %B %d, %Y %l:%M:%S %p");
+    // Parse the datetime string
+    match datetime_res {
+        Ok(datetime) => return datetime.timestamp().to_string(),
+        Err(e) => {
+            println!("Error parsing datetime: {}", e);
+            return String::new();
+        }
+    }
 }
