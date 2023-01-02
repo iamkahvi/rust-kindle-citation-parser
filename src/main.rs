@@ -23,7 +23,6 @@ struct Highlight {
 }
 
 fn main() {
-    println!("Hello, world!");
     let input_file = std::env::args().nth(1).expect("no input file given");
     let output_file = std::env::args().nth(2).expect("no output file given");
 
@@ -62,7 +61,6 @@ fn process_item(item: String) -> Option<Highlight> {
         .collect::<Vec<&str>>();
 
     if lines.len() < 3 {
-        // println!("Blank quote: {}", item);
         return None;
     }
 
@@ -94,8 +92,6 @@ fn process_item(item: String) -> Option<Highlight> {
 fn parse_first_line(line: String) -> Option<(String, String)> {
     let mut book = String::new();
     let mut author_name = String::new();
-    let mut author_last_name = String::new();
-    let mut author_first_name = String::new();
 
     let re1 = Regex::new(r"^(.*) \(([^,]*), (.*)\)$").unwrap();
     let re2 = Regex::new(r"^(.*) \(([^,]*) (.*)\)$").unwrap();
@@ -104,21 +100,11 @@ fn parse_first_line(line: String) -> Option<(String, String)> {
     if re1.is_match(&line) {
         let caps = re1.captures(&line).unwrap();
         book = caps.get(1).unwrap().as_str().to_owned();
-        author_last_name = caps.get(2).unwrap().as_str().to_owned();
-        author_first_name = caps.get(3).unwrap().as_str().to_owned();
-
-        author_name.push_str(&author_first_name);
-        author_name.push_str(" ");
-        author_name.push_str(&author_last_name);
+        caps.expand(r"$3 $2", &mut author_name);
     } else if re2.is_match(&line) {
         let caps = re2.captures(&line).unwrap();
         book = caps.get(1).unwrap().as_str().to_owned();
-        author_last_name = caps.get(3).unwrap().as_str().to_owned();
-        author_first_name = caps.get(2).unwrap().as_str().to_owned();
-
-        author_name.push_str(&author_first_name);
-        author_name.push_str(" ");
-        author_name.push_str(&author_last_name);
+        caps.expand(r"$2 $3", &mut author_name);
     } else if re3.is_match(&line) {
         let caps = re3.captures(&line).unwrap();
         book = caps.get(1).unwrap().as_str().to_owned();
