@@ -29,12 +29,9 @@ fn main() {
 
     println!("input_file: {}", input_file);
     println!("output_file: {}", output_file);
-    match &book_regex {
-        Some(regex) => println!("book_regex: {}", regex),
-        _ => (),
-    }
+    println!("book_regex: {:?}", book_regex);
 
-    let text = fs::read_to_string(&input_file).unwrap();
+    let text = fs::read_to_string(&input_file).expect("Unable to read file");
     let items = text.split("==========");
 
     let highlights: Vec<Highlight> = items
@@ -133,31 +130,32 @@ fn parse_second_line(line: String) -> Option<(Option<i32>, Location, i64)> {
             .unwrap();
     let re2 = Regex::new(r"^- Your [Hh]ighlight[^|]*[Ll]ocation (.*) \| Added on (.*)$").unwrap();
 
-    if re1.is_match(&line) {
-        // - Your Highlight on page 293 | Location 4131-4131 | Added on Monday, December 19, 2022 12:50:19 PM
-        let caps = re1.captures(&line).unwrap();
+    let re1_caps = re1.captures(&line);
+    let re2_caps = re2.captures(&line);
 
-        page = Some(caps.get(1).unwrap().as_str().parse::<i32>().unwrap());
+    match (re1_caps, re2_caps) {
+        (Some(caps), _) => {
+            page = Some(caps.get(1).unwrap().as_str().parse::<i32>().unwrap());
 
-        let location_string = caps.get(2).unwrap().as_str().to_owned();
-        if let Some(l) = parse_location(location_string) {
-            location = l;
+            let location_string = caps.get(2).unwrap().as_str().to_owned();
+            if let Some(l) = parse_location(location_string) {
+                location = l;
+            }
+
+            date_added = parse_datetime(caps.get(3).unwrap().as_str().to_owned());
         }
+        (_, Some(caps)) => {
+            let location_string = caps.get(1).unwrap().as_str().to_owned();
+            if let Some(l) = parse_location(location_string) {
+                location = l;
+            }
 
-        date_added = parse_datetime(caps.get(3).unwrap().as_str().to_owned());
-    } else if re2.is_match(&line) {
-        // - Your Highlight on Location 138-140 | Added on Monday, December 19, 2022 10:29:07 PM
-        let caps = re2.captures(&line).unwrap();
-
-        let location_string = caps.get(1).unwrap().as_str().to_owned();
-        if let Some(l) = parse_location(location_string) {
-            location = l;
+            date_added = parse_datetime(caps.get(2).unwrap().as_str().to_owned());
         }
-
-        date_added = parse_datetime(caps.get(2).unwrap().as_str().to_owned());
-    } else {
-        println!("Invalid second line: {}", line);
-        return None;
+        (None, None) => {
+            println!("Invalid second line: {}", line);
+            return None;
+        }
     }
 
     return Some((page, location, date_added));
