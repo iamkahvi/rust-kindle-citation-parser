@@ -25,28 +25,30 @@ struct Highlight {
 fn main() {
     let input_file = std::env::args().nth(1).expect("no input file given");
     let output_file = std::env::args().nth(2).expect("no output file given");
-
-    // if input == "--help" || first_arg == "-h" {
-    //     println!("nr - Prepend line numbers to STDIN");
-    //     println!();
-    //     println!("Usage:");
-    //     println!("    <your command> | nr [minwidth] [offset]");
-    //     println!();
-    //     println!("Options:");
-    //     println!("    [minwidth]    The minimum width of number column");
-    //     println!("                  Select 0 for no minimum width");
-    //     println!();
-    //     println!("    [offset]      Starting line index. Default is 1");
-    //     return;
-    // }
+    let book_regex = std::env::args().nth(3);
 
     println!("input_file: {}", input_file);
     println!("output_file: {}", output_file);
+    match &book_regex {
+        Some(regex) => println!("book_regex: {}", regex),
+        _ => (),
+    }
 
     let text = fs::read_to_string(&input_file).unwrap();
     let items = text.split("==========");
 
-    let highlights: Vec<Highlight> = items.filter_map(|x| process_item(x.to_string())).collect();
+    let highlights: Vec<Highlight> = items
+        .filter_map(|x| process_item(x.to_string()))
+        .filter(|h| {
+            return match &book_regex {
+                Some(regex) => {
+                    let re = Regex::new(regex).unwrap();
+                    re.is_match(&h.book)
+                }
+                None => true,
+            };
+        })
+        .collect();
 
     let serialized = serde_json::to_string(&highlights).unwrap();
 
