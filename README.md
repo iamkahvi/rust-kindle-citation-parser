@@ -9,7 +9,7 @@ This CLI converts the text into JSON. Inspired by ([kindle-citation-extractor](h
 Requires rust.
 
 ```bash
-cargo build release
+cargo build --release
 ./target/release/kindle-highlight-parser My\ Clippings.txt out.json
 ```
 
