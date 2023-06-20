@@ -1,7 +1,6 @@
 use chrono::{TimeZone, Utc};
 use regex::Regex;
 use serde::Serialize;
-use serde_json;
 use std::fs;
 
 #[derive(Debug, Serialize)]
@@ -36,14 +35,12 @@ fn main() {
 
     let highlights: Vec<Highlight> = items
         .filter_map(|x| process_item(x.to_string()))
-        .filter(|h| {
-            return match &book_regex {
-                Some(regex) => {
-                    let re = Regex::new(regex).unwrap();
-                    re.is_match(&h.book)
-                }
-                None => true,
-            };
+        .filter(|h| match &book_regex {
+            Some(regex) => {
+                let re = Regex::new(regex).unwrap();
+                re.is_match(&h.book)
+            }
+            None => true,
         })
         .collect();
 
@@ -84,12 +81,12 @@ fn process_item(item: String) -> Option<Highlight> {
         date_added,
     };
 
-    return Some(h);
+    Some(h)
 }
 
 // returns book title and author string tuple
 fn parse_first_line(line: String) -> Option<(String, String)> {
-    let mut book = String::new();
+    let book;
     let mut author_name = String::new();
 
     let re1 = Regex::new(r"^(.*) \(([^,]*), (.*)\)$").unwrap();
@@ -116,14 +113,14 @@ fn parse_first_line(line: String) -> Option<(String, String)> {
         return None;
     }
 
-    return Some((book, author_name));
+    Some((book, author_name))
 }
 
 // returns page, location, date added
 fn parse_second_line(line: String) -> Option<(Option<i32>, Location, i64)> {
     let mut page = None;
     let mut location = Location { start: 0, end: 0 };
-    let mut date_added = 0;
+    let date_added;
 
     let re1 =
         Regex::new(r"^- Your [Hh]ighlight[^|]*page (.*) \| [Ll]ocation (.*) \| Added on (.*)$")
@@ -158,7 +155,7 @@ fn parse_second_line(line: String) -> Option<(Option<i32>, Location, i64)> {
         }
     }
 
-    return Some((page, location, date_added));
+    Some((page, location, date_added))
 }
 
 fn parse_datetime(datetime_string: String) -> i64 {
@@ -171,11 +168,11 @@ fn parse_datetime(datetime_string: String) -> i64 {
         TimeZone::datetime_from_str(&Utc, &datetime_string, fmt2);
 
     match (datetime_res1, datetime_res2) {
-        (Ok(datetime), _) => return datetime.timestamp(),
-        (_, Ok(datetime)) => return datetime.timestamp(),
+        (Ok(datetime), _) => datetime.timestamp(),
+        (_, Ok(datetime)) => datetime.timestamp(),
         _ => {
             println!("Invalid datetime: {}", datetime_string);
-            return 0;
+            0
         }
     }
 }
@@ -189,9 +186,9 @@ fn parse_location(location_string: String) -> Option<Location> {
         let start = caps.get(1).unwrap().as_str().parse::<i32>().unwrap();
         let end = caps.get(2).unwrap().as_str().parse::<i32>().unwrap();
 
-        return Some(Location { start, end });
+        Some(Location { start, end })
     } else {
         eprintln!("Invalid location: {}", location_string);
-        return None;
+        None
     }
 }
